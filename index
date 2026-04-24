@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Throwball Infinity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #111827;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #2d3748;
+            border-radius: 0.5rem;
+            width: 100%;
+            max-width: 1280px;
+            aspect-ratio: 1280 / 720;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            overflow-y: auto;
+            padding: 2rem 1rem;
+            z-index: 50;
+        }
+        
+        .modal-box {
+            background-color: #1f2937;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            width: 100%;
+            max-width: 1400px;
+            margin: auto;
+            border: 1px solid #374151;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .scroll-area {
+            max-height: 45vh;
+            overflow-y: auto;
+            border-top: 1px solid #374151;
+            border-bottom: 1px solid #374151;
+            padding: 1rem 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        select, input[type="number"], input[type="text"] {
+            background-color: #374151; color: white; border: 1px solid #4b5563; padding: 0.25rem; border-radius: 0.25rem;
+        }
+
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        #mobile-controls {
+            display: none; 
+            position: fixed; bottom: 10px; left: 0; right: 0;
+            padding: 0 20px;
+            justify-content: space-between;
+            z-index: 40;
+            user-select: none;
+            touch-action: none; 
+        }
+
+        .btn-control {
+            background: rgba(55, 65, 81, 0.8);
+            border: 2px solid #4b5563;
+            color: white; font-weight: bold;
+            border-radius: 50%;
+            width: 60px; height: 60px;
+            display: flex; justify-content: center; align-items: center;
+            user-select: none; text-transform: uppercase; font-size: 12px;
+        }
+        .btn-control:active { background: rgba(75, 85, 99, 1); transform: scale(0.95); }
+        .d-pad { display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px); gap: 5px; }
+        .action-pad { display: grid; grid-template-columns: repeat(2, 60px); grid-template-rows: repeat(2, 60px); gap: 10px; }
+
+        .btn-toggle-active { background-color: #2563eb !important; border-color: #60a5fa !important; }
+    </style>
+</head>
+<body class="flex flex-col relative pb-12 pt-4">
+
+    <!-- SETUP OVERLAY -->
+    <div id="start-overlay" class="game-overlay">
+        <div class="modal-box flex flex-col text-center">
+            <h1 class="text-4xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-wider">THROWBALL INFINITY</h1>
+            
+            <div class="flex justify-center gap-4 mb-4">
+                <button onclick="window.toggleTutorial()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm">🎓 How to Play</button>
+                <button onclick="window.toggleGuide()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded font-bold text-sm">📖 Ability Guide</button>
+            </div>
+
+            <!-- Mode Selectors -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="bg-gray-800 p-2 rounded-lg border border-gray-700 flex flex-col items-center justify-center">
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Network Mode</span>
+                    <div class="flex gap-2">
+                        <button id="btn-mode-local" onclick="window.setNetMode('local')" class="btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent">Local</button>
+                        <button id="btn-mode-host" onclick="window.setNetMode('host')" class="bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent">Host Online</button>
+                        <button id="btn-mode-join" onclick="window.setNetMode('client')" class="bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent">Join Online</button>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-2 rounded-lg border border-gray-700 flex flex-col items-center justify-center" id="play-style-container">
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Play Style</span>
+                    <div class="flex gap-2">
+                        <button id="btn-style-team" onclick="window.setPlayStyle('team')" class="btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent">Full Team Control</button>
+                        <button id="btn-style-hero" onclick="window.setPlayStyle('hero')" class="bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent">Hero Mode (Locked)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Host Config / Join Config -->
+            <div id="online-host-panel" style="display:none;" class="bg-gray-800 p-3 rounded-lg mb-2 border border-green-500/50">
+                <div class="flex flex-col md:flex-row items-center justify-center gap-4">
+                    <button id="host-create-btn" class="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold transition shadow-lg">Generate Room Code</button>
+                    <p id="host-code-display" class="text-2xl font-mono text-yellow-400 font-bold tracking-widest"></p>
+                    <label class="flex items-center space-x-2 cursor-pointer text-gray-300 font-bold text-sm bg-gray-900 p-2 rounded border border-gray-600">
+                        <input type="checkbox" id="host-spectate-check" class="w-4 h-4" onchange="window.updateUIState()">
+                        <span>Host Spectate Only (No Player)</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div id="online-join-panel" style="display:none;" class="bg-gray-800 p-3 rounded-lg mb-2 border border-blue-500/50">
+                <div class="flex items-center justify-center gap-4">
+                    <input type="text" id="join-code-input" placeholder="CODE" maxlength="4" class="text-center uppercase text-black font-bold text-xl p-1.5 w-24 rounded">
+                    <button id="join-room-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-1.5 rounded font-bold transition shadow-lg">Connect to Lobby</button>
+                    <p id="join-status-msg" class="text-sm text-yellow-400"></p>
+                </div>
+            </div>
+
+            <!-- Global Match Settings (Hidden for Joiners) -->
+            <div id="global-settings-panel" class="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-700 p-4 rounded-lg mb-2">
+                <div class="flex flex-col"><label class="font-bold text-sm text-gray-300">Game Time (mins)</label><input type="number" id="game-time-input" value="3" min="1" max="60" class="text-center font-bold"></div>
+                <div class="flex flex-col"><label class="font-bold text-sm text-blue-300">Blue Team Size</label><input type="number" id="blue-size-input" value="5" min="1" max="30" class="text-center font-bold"></div>
+                <div class="flex flex-col"><label class="font-bold text-sm text-red-300">Red Team Size</label><input type="number" id="red-size-input" value="5" min="1" max="30" class="text-center font-bold"></div>
+                <div class="flex items-end">
+                    <label class="flex items-center justify-center w-full h-full space-x-2 cursor-pointer text-yellow-400 font-bold bg-gray-800 rounded border border-yellow-500/50">
+                        <input type="checkbox" id="enforce-stats-check" checked class="w-4 h-4 accent-yellow-400">
+                        <span class="text-xs">Enforce Stat Cap (350)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- FULL TEAM BUILDER PANELS -->
+            <div id="builder-team-panel" class="w-full">
+                <!-- Local Assignments for Full Team -->
+                <div id="local-team-assignments" class="flex justify-center gap-4 mb-2 bg-gray-700 p-2 rounded-lg">
+                    <label class="flex items-center space-x-2 text-blue-400 font-bold text-sm">
+                        <span>P1 (WASD):</span>
+                        <select id="p1-team-select" class="bg-gray-800 text-white rounded p-1 outline-none"><option value="blue" selected>Blue</option><option value="red">Red</option><option value="none">Off</option></select>
+                    </label>
+                    <label class="flex items-center space-x-2 text-red-400 font-bold text-sm">
+                        <span>P2 (ARROWS):</span>
+                        <select id="p2-team-select" class="bg-gray-800 text-white rounded p-1 outline-none"><option value="blue">Blue</option><option value="red" selected>Red</option><option value="none">Off</option></select>
+                    </label>
+                    <button onclick="window.generateFullTeams()" class="bg-gray-600 hover:bg-gray-500 text-white px-4 py-1 rounded font-bold ml-auto text-xs">Re-Generate Lists</button>
+                </div>
+
+                <div class="scroll-area">
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 text-left pb-4">
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-gray-800 p-2 rounded border border-blue-900 shadow flex justify-between items-center sticky top-0 z-10">
+                                <input type="text" id="blue-team-name-input" value="Blue Team" class="text-lg font-bold text-blue-400 bg-transparent focus:outline-none">
+                            </div>
+                            <div id="blue-player-list" class="space-y-2"></div>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-gray-800 p-2 rounded border border-red-900 shadow flex justify-between items-center sticky top-0 z-10">
+                                <input type="text" id="red-team-name-input" value="Red Team" class="text-lg font-bold text-red-400 bg-transparent focus:outline-none">
+                            </div>
+                            <div id="red-player-list" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HERO BUILDER PANELS -->
+            <div id="builder-hero-panel" style="display:none;" class="w-full">
+                <div class="scroll-area flex flex-col gap-4 text-left">
+                    
+                    <div id="hero-p1-wrap" class="bg-gray-700 p-4 rounded-lg border border-blue-500/50">
+                        <div class="flex justify-between items-center mb-2 border-b border-gray-600 pb-2">
+                            <h2 class="text-lg font-bold text-blue-400">P1 Hero / My Hero</h2>
+                            <select id="hero-p1-team" class="bg-gray-800 text-white font-bold p-1 rounded outline-none">
+                                <option value="blue" class="text-blue-400">🟦 Blue Team</option><option value="red" class="text-red-400">🟥 Red Team</option>
+                            </select>
+                        </div>
+                        <div id="hero-p1-container"></div>
+                    </div>
+
+                    <div id="hero-p2-wrap" class="bg-gray-700 p-4 rounded-lg border border-red-500/50">
+                        <div class="flex justify-between items-center mb-2 border-b border-gray-600 pb-2">
+                            <h2 class="text-lg font-bold text-red-400">P2 Hero (Local)</h2>
+                            <select id="hero-p2-team" class="bg-gray-800 text-white font-bold p-1 rounded outline-none">
+                                <option value="blue" class="text-blue-400">🟦 Blue Team</option><option value="red" selected class="text-red-400">🟥 Red Team</option><option value="none" class="text-gray-400">Off (No P2)</option>
+                            </select>
+                        </div>
+                        <div id="hero-p2-container"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Online Lobby Info Display -->
+            <div id="online-lobby-display" style="display:none;" class="bg-gray-800 p-3 rounded-lg mb-2 text-left border border-gray-600">
+                <h3 class="text-sm font-bold text-yellow-400 border-b border-gray-600 mb-1">Connected Players</h3>
+                <ul id="lobby-player-list" class="space-y-1 text-xs font-mono"></ul>
+                <div id="lobby-action-container" class="mt-2"></div>
+            </div>
+            
+            <div class="flex-none mt-2 pt-2 flex flex-col md:flex-row gap-4 w-full justify-center items-center">
+                <label class="flex items-center space-x-2 cursor-pointer text-purple-400 font-bold text-sm bg-gray-800 p-2 rounded-lg border border-purple-500/30">
+                    <input type="checkbox" id="mobile-device-check" class="w-4 h-4 accent-purple-400">
+                    <span>Show Mobile Controls</span>
+                </label>
+                <button id="start-game-btn" class="w-full md:w-1/3 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-xl transition shadow-lg">START LOCAL MATCH</button>
+            </div>
+            
+            <p id="firebase-status" class="text-xs text-gray-500 mt-2">Connecting to multiplayer servers...</p>
+        </div>
+    </div>
+
+    <!-- TUTORIAL MENU -->
+    <div id="tutorial-overlay" class="game-overlay" style="display: none; z-index: 100;">
+        <div class="modal-box max-w-3xl text-left relative">
+            <button onclick="window.toggleTutorial()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2">How to Play: Throwball Infinity</h2>
+            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2 text-gray-300 leading-relaxed text-sm">
+                <p><span class="font-bold text-white text-lg">The Goal:</span> Pick up the white ball and throw it into the enemy's glowing goal hole to score. The team with the most points when time runs out wins!</p>
+                <hr class="border-gray-700">
+                <p><span class="font-bold text-yellow-400">Potential Points:</span> If you hold the ball and stand inside the enemy's colored zone (the outer thirds of the court), you will slowly generate <span class="font-bold text-yellow-300">Potential Points</span>. 
+                When you throw the ball into the goal, you cash in your Potential Points + 1 standard point. But beware: if the enemy steals the ball, they steal ALL of your Potential Points!</p>
+                <hr class="border-gray-700">
+                <h3 class="text-xl font-bold text-white">Basic Controls:</h3>
+                <ul class="list-disc pl-6 space-y-1">
+                    <li><span class="font-mono text-white">WASD / Arrows:</span> Move your character.</li>
+                    <li><span class="font-mono text-white">Space / Enter:</span> Throw the ball (if held) OR Steal the ball (if near an enemy holding it).</li>
+                    <li><span class="font-mono text-white">Q / Shift:</span> Switch control to the teammate closest to the ball (Full Team Mode only).</li>
+                </ul>
+                <h3 class="text-xl font-bold text-purple-400 mt-4">Abilities:</h3>
+                <ul class="list-disc pl-6 space-y-1">
+                    <li><span class="font-mono text-white">E / Slash (/):</span> Activate your equipped Ability.</li>
+                    <li><span class="font-mono text-white">C / Period (.):</span> Cycle through your loaded abilities (or discard a copied ability).</li>
+                </ul>
+                <p class="text-xs text-gray-400 italic">Abilities slowly charge up over time. If you have "Copycat" or "Adaptation", stealing the ball from an enemy grants you their ability! See the "Ability Guide" for details on specific powers.</p>
+            </div>
+            <div class="mt-6 text-center">
+                <button onclick="window.toggleTutorial()" class="bg-blue-600 hover:bg-blue-500 px-8 py-2 rounded font-bold text-white">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAUSE MENU -->
+    <div id="pause-overlay" class="game-overlay" style="display: none;">
+        <div class="modal-box text-center max-w-4xl">
+            <h1 class="text-4xl font-extrabold text-yellow-400 mb-6">PAUSED</h1>
+            <div class="flex justify-center gap-4 mb-6">
+                <button onclick="window.togglePause()" class="bg-green-600 hover:bg-green-500 px-6 py-2 rounded font-bold text-lg">Resume Game</button>
+                <button onclick="window.toggleGuide()" class="bg-purple-600 hover:bg-purple-500 px-6 py-2 rounded font-bold text-lg">Ability Guide</button>
+                <button onclick="window.resetGameState()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold text-lg">Quit to Menu</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-left text-sm max-h-[50vh] overflow-y-auto">
+                <div class="bg-gray-800 p-4 rounded border border-blue-900">
+                    <h3 id="pause-blue-name" class="text-xl font-bold text-blue-400 mb-2 border-b border-gray-600 pb-1">Blue Team</h3>
+                    <ul id="pause-blue-roster" class="space-y-1"></ul>
+                </div>
+                <div class="bg-gray-800 p-4 rounded border border-red-900">
+                    <h3 id="pause-red-name" class="text-xl font-bold text-red-400 mb-2 border-b border-gray-600 pb-1">Red Team</h3>
+                    <ul id="pause-red-roster" class="space-y-1"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUIDE -->
+    <div id="guide-overlay" class="game-overlay" style="display: none; z-index: 100;">
+        <div class="modal-box max-w-3xl text-left relative">
+            <button onclick="window.toggleGuide()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl font-bold text-purple-400 mb-4 border-b border-gray-700 pb-2">Ability Guide</h2>
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 text-sm text-gray-300">
+                <p><span class="font-bold text-blue-400">Speedster / Speedster+:</span> Passively boosts movement speed while active. (+) Much faster.</p>
+                <p><span class="font-bold text-blue-400">Magnet / Magnet+:</span> Passively increases ball pickup/steal range. (+) Massive range increase.</p>
+                <p><span class="font-bold text-blue-400">Sniper / Sniper+:</span> Passively increases throw speed and accuracy. (+) Ball travels like a bullet.</p>
+                <p><span class="font-bold text-blue-400">Tank / Tank+:</span> Passively boosts Keep stat, making it very hard for enemies to steal from you. (+) Almost immune to steals.</p>
+                <p><span class="font-bold text-blue-400">Blink / Blink+:</span> Instantly teleports you in the direction you are moving. (+) Teleports significantly further.</p>
+                <p><span class="font-bold text-blue-400">Repel / Repel+:</span> Creates a shockwave that violently pushes nearby enemies away. (+) Larger shockwave and force.</p>
+                <p><span class="font-bold text-blue-400">Titan / Titan+:</span> Grow huge. Stats multiply greatly for 8 seconds, followed by exhaustion (weakened stats). (+) No exhaustion, bigger stat multiply.</p>
+                <p><span class="font-bold text-purple-400">Freeze+:</span> Instantly freezes the entire enemy team in place for 3 seconds.</p>
+                <p><span class="font-bold text-purple-400">Motivator+:</span> HOLD ability key near enemies to DRAIN energy (fills bottom storage ring). HOLD near allies to BOOST their energy using your storage. Can be activated at any energy level.</p>
+                <hr class="border-gray-700 my-2">
+                <p><span class="font-bold text-yellow-400">Null (3 Slots):</span> Triggers an AOE pulse based on N-Rng stat. Enemies hit are "Nullified" (lose their abilities) for 10s. Having this equipped permanently expands your Stat Cap to 400.</p>
+                <p><span class="font-bold text-yellow-400">Copycat (3 Slots):</span> Stealing the ball from an enemy copies their ability and <span class="text-red-400 font-bold">suppresses them for 10s</span>. You become the ability. You can only hold one stolen ability. Press Cycle to reset back to Copycat.</p>
+                <p><span class="font-bold text-yellow-400">Adaptation (3 Slots):</span> Stealing the ball from an enemy permanently adds their ability to your library without suppressing them. You can steal infinite abilities and press Cycle to swap through your massive loadout.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- END GAME -->
+    <div id="end-overlay" class="game-overlay" style="display: none;">
+        <div class="modal-box text-center max-w-md">
+            <h1 id="end-winner-text" class="text-4xl font-extrabold text-yellow-400 mb-4">GAME OVER!</h1>
+            <div class="space-y-4 text-2xl font-mono mb-6">
+                <div class="flex justify-between items-center p-4 rounded bg-blue-900/50 border border-blue-400"><span id="final-blue-name">Blue</span><span id="final-blue-score" class="font-bold">0</span></div>
+                <div class="flex justify-between items-center p-4 rounded bg-red-900/50 border border-red-400"><span id="final-red-name">Red</span><span id="final-red-score" class="font-bold">0</span></div>
+            </div>
+            <button onclick="window.resetGameState()" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded-lg font-bold text-lg shadow">Play Again</button>
+        </div>
+    </div>
+
+    <!-- MAIN GAME UI -->
+    <div class="flex-grow flex flex-col items-center justify-center w-full px-2">
+        <div class="w-full max-w-5xl mb-2 p-2 bg-gray-800 rounded-lg shadow border border-gray-700 flex justify-between items-center text-center">
+            <div class="text-blue-400 w-1/3">
+                <h2 class="text-xl lg:text-2xl font-bold truncate px-2" id="current-blue-name">BLUE</h2>
+                <p>Score: <span id="blue-score" class="font-bold text-white">0</span></p>
+                <p class="text-xs text-gray-400">Pot: <span id="blue-potential" class="text-yellow-300">0</span></p>
+            </div>
+            <div class="text-white w-1/3 flex flex-col items-center cursor-pointer" onclick="window.togglePause()" title="Click to Pause">
+                <p id="game-timer" class="text-3xl lg:text-4xl font-mono font-bold tracking-wider hover:text-yellow-300 transition">00:00</p>
+                <span class="text-[10px] text-gray-500 uppercase tracking-widest bg-gray-700 px-2 rounded mt-1">ESC / START to Pause</span>
+                <span id="network-status" class="text-[10px] text-yellow-400 uppercase tracking-widest mt-1 hidden">ONLINE</span>
+            </div>
+            <div class="text-red-400 w-1/3">
+                <h2 class="text-xl lg:text-2xl font-bold truncate px-2" id="current-red-name">RED</h2>
+                <p>Score: <span id="red-score" class="font-bold text-white">0</span></p>
+                <p class="text-xs text-gray-400">Pot: <span id="red-potential" class="text-yellow-300">0</span></p>
+            </div>
+        </div>
+
+        <div class="relative w-full max-w-5xl flex justify-center items-center">
+            <canvas id="gameCanvas" width="1280" height="720"></canvas>
+            <p id="game-message" class="absolute top-4 text-center w-full text-yellow-300 text-2xl font-extrabold drop-shadow-lg pointer-events-none"></p>
+        </div>
+
+        <div id="local-control-hints" class="hidden lg:grid grid-cols-2 gap-4 mt-4 w-full max-w-5xl text-center text-sm bg-gray-800 p-3 rounded-lg border border-gray-700">
+            <div>
+                <p class="text-blue-400 font-bold mb-1 border-b border-gray-600 pb-1">P1 (WASD / GAMEPAD 1)</p>
+                <p class="text-gray-300 text-xs">Move: <span class="text-white">WASD / L-Stick</span> | Act: <span class="text-white">Space / A</span> | Switch: <span class="text-white">Q / Bumpers</span> | Ability: <span class="text-white">E / X</span> | Swap: <span class="text-white">C / B</span></p>
+            </div>
+            <div>
+                <p class="text-red-400 font-bold mb-1 border-b border-gray-600 pb-1">P2 (ARROWS / GAMEPAD 2)</p>
+                <p class="text-gray-300 text-xs">Move: <span class="text-white">Arrows / L-Stick</span> | Act: <span class="text-white">Enter / A</span> | Switch: <span class="text-white">R-Shift / Bumpers</span> | Ability: <span class="text-white">/ / X</span> | Swap: <span class="text-white">. / B</span></p>
+            </div>
+        </div>
+
+        <div id="hero-control-hints" style="display:none;" class="mt-4 w-full max-w-5xl text-center text-sm bg-gray-800 p-3 rounded-lg border border-yellow-600">
+            <p class="text-yellow-400 font-bold mb-1 border-b border-gray-600 pb-1">HERO MODE CONTROLS</p>
+            <p class="text-gray-300 text-xs">Move: <span class="text-white">WASD/Arrows / L-Stick</span> | Act: <span class="text-white">Space/Enter / A</span> | Ability: <span class="text-white">E/Slash / X</span> | Swap: <span class="text-white">C/Period / B</span> | <span class="text-red-400 font-bold">Switching Characters Disabled</span></p>
+        </div>
+
+        <div id="mobile-controls">
+            <div class="d-pad">
+                <div></div><div class="btn-control" id="btn-up">W</div><div></div>
+                <div class="btn-control" id="btn-left">A</div><div class="btn-control" id="btn-down">S</div><div class="btn-control" id="btn-right">D</div>
+            </div>
+            <div class="action-pad">
+                <div class="btn-control bg-purple-600 border-purple-400" id="btn-cycle">CYC</div>
+                <div class="btn-control bg-green-600 border-green-400" id="btn-switch" style="display:flex;">SWT</div>
+                <div class="btn-control bg-yellow-600 border-yellow-400" id="btn-ability">ABL</div>
+                <div class="btn-control bg-blue-600 border-blue-400" id="btn-act">ACT</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase & Main Game Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let fbApp, db, auth, userId, isAuthReady = false;
+        
+        let onlineMode = 'local'; // 'local', 'host', 'client'
+        let playStyle = 'team'; // 'team' or 'hero'
+        
+        let roomId = null;
+        let roomRef = null;
+        let remoteInputs = {}; 
+        let prevRemoteInputs = {};
+        let lastSentInputs = "";
+        let lastSyncTime = 0;
+        let unsubscribeRoom = null;
+        let roomDataCache = null; 
+
+        // Firebase Init
+        const initAuth = async () => {
+            try {
+                fbApp = initializeApp(firebaseConfig);
+                db = getFirestore(fbApp);
+                auth = getAuth(fbApp);
+                if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+                else await signInAnonymously(auth);
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) { 
+                        userId = user.uid; 
+                        isAuthReady = true; 
+                        document.getElementById('firebase-status').innerText = "Online Multiplayer Available";
+                        document.getElementById('firebase-status').className = "text-xs text-green-500 mt-2 font-bold";
+                    }
+                });
+            } catch(e) { 
+                console.error("Firebase Init Error:", e);
+                document.getElementById('firebase-status').innerText = "Network Error - Offline Mode Only";
+                document.getElementById('firebase-status').className = "text-xs text-red-500 mt-2";
+            }
+        };
+        initAuth();
+
+        // --- HELPER FUNCTIONS ---
+        function getDist(a, b) { return Math.sqrt(Math.pow((a.x || 0)-(b.x || 0), 2)+Math.pow((a.y || 0)-(b.y || 0), 2)) || 0.1; }
+        function isPlayerInZone(x, z) { return x>z.x && x<z.x+z.w; }
+        function checkCollision(c1, c2) { return getDist(c1, c2) < (c1.radius || 15) + (c2.radius || 15); }
+        function getCost(ab) { return ['Copycat', 'Null', 'Adaptation'].includes(ab) ? 3 : (ab.includes('+') ? 2 : (ab === 'None' ? 0 : 1)); }
+        function getColor(ab) { return ['Copycat', 'Null', 'Adaptation'].includes(ab) ? 'text-yellow-400 font-bold' : (ab.includes('+') ? 'text-purple-400 font-bold' : (ab !== 'None' ? 'text-blue-400 font-bold' : 'text-gray-400')); }
+
+        function generateRandomStats(numStats, total) {
+            let s = new Array(numStats).fill(10); let r = total - (numStats * 10);
+            while (r > 0) { let j = Math.floor(Math.random() * numStats); if (s[j] < 100) { let add = Math.min(r, Math.floor(Math.random() * 5) + 1); if (s[j]+add > 100) add = 100-s[j]; s[j] += add; r -= add; } }
+            return s;
+        }
+
+        function generateRandomBotData(teamParam) {
+            let defaultRole = ROLES[Math.floor(Math.random() * ROLES.length)];
+            let name = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)] + " (Bot)";
+            let dAbil = ABILITIES.filter(a => a !== 'None' && !a.includes('+') && !['Copycat', 'Null', 'Adaptation'].includes(a))[Math.floor(Math.random() * 10)];
+            if(Math.random()>0.8) dAbil = 'None';
+            let stats = generateRandomStats(5, BASE_STAT_CAP);
+            return { name, role: defaultRole, abs: [dAbil], iq: stats[0]/100, spd: stats[1], stl: stats[2], kp: stats[3], chg: stats[4], nrng: 10, team: teamParam };
+        }
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const UI = {
+            blueScore: document.getElementById('blue-score'), bluePot: document.getElementById('blue-potential'),
+            redScore: document.getElementById('red-score'), redPot: document.getElementById('red-potential'),
+            timer: document.getElementById('game-timer'), msg: document.getElementById('game-message'),
+            startUI: document.getElementById('start-overlay'), endUI: document.getElementById('end-overlay'),
+            pauseUI: document.getElementById('pause-overlay'), guideUI: document.getElementById('guide-overlay'),
+            tutorialUI: document.getElementById('tutorial-overlay'),
+            blueList: document.getElementById('blue-player-list'), redList: document.getElementById('red-player-list'),
+            enforceCheck: document.getElementById('enforce-stats-check'), mobileCheck: document.getElementById('mobile-device-check'),
+            mobileControls: document.getElementById('mobile-controls'),
+            btnLocal: document.getElementById('btn-mode-local'), btnHost: document.getElementById('btn-mode-host'), btnJoin: document.getElementById('btn-mode-join'),
+            btnStyleTeam: document.getElementById('btn-style-team'), btnStyleHero: document.getElementById('btn-style-hero'),
+            panelHost: document.getElementById('online-host-panel'), panelJoin: document.getElementById('online-join-panel'), 
+            panelSet: document.getElementById('global-settings-panel'), panelBuilderTeam: document.getElementById('builder-team-panel'),
+            panelBuilderHero: document.getElementById('builder-hero-panel'), p1HeroTeam: document.getElementById('hero-p1-team'),
+            p2HeroTeam: document.getElementById('hero-p2-team'), p1HeroContainer: document.getElementById('hero-p1-container'), p2HeroContainer: document.getElementById('hero-p2-container'),
+            lobbyDisplay: document.getElementById('online-lobby-display'), lobbyList: document.getElementById('lobby-player-list'),
+            btnStart: document.getElementById('start-game-btn'),
+            hostSpectateCheck: document.getElementById('host-spectate-check')
+        };
+
+        const COURT_WIDTH = canvas.width, COURT_HEIGHT = canvas.height;
+        const ZONE_WIDTH = COURT_WIDTH / 3;
+        const BLUE_ZONE = { x: 0, w: ZONE_WIDTH }, NEUTRAL_ZONE = { x: ZONE_WIDTH, w: ZONE_WIDTH }, RED_ZONE = { x: ZONE_WIDTH * 2, w: ZONE_WIDTH };
+        const HOLE_RADIUS = 20, HOLE_OFFSET_X = 60; 
+        const BLUE_HOLE = { x: HOLE_OFFSET_X, y: COURT_HEIGHT / 2, radius: HOLE_RADIUS };
+        const RED_HOLE = { x: COURT_WIDTH - HOLE_OFFSET_X, y: COURT_HEIGHT / 2, radius: HOLE_RADIUS };
+        
+        const PLAYER_SPEED_NORMAL = 4, PLAYER_SPEED_BOOST = 6, THROW_SPEED = 12, AI_SPEED = 2.8; 
+        const BASE_STAT_CAP = 350;
+        
+        const ROLES = ['goalkeeper', 'defender', 'playmaker', 'rusher', 'farmer'];
+        const ABILITIES = ['None', 'Speedster', 'Speedster+', 'Magnet', 'Magnet+', 'Sniper', 'Sniper+', 'Tank', 'Tank+', 'Titan', 'Titan+', 'Blink', 'Blink+', 'Repel', 'Repel+', 'Freeze+', 'Motivator+', 'Null', 'Copycat', 'Adaptation'];
+        const ACTIVE_ABILITIES = ['Speedster', 'Speedster+', 'Magnet', 'Magnet+', 'Sniper', 'Sniper+', 'Tank', 'Tank+', 'Titan', 'Titan+', 'Blink', 'Blink+', 'Repel', 'Repel+', 'Freeze+', 'Motivator+'];
+        const FAST_CHARGE_ABILITIES = ['Titan', 'Titan+', 'Blink', 'Blink+', 'Repel', 'Repel+', 'Freeze+', 'Motivator+']; 
+        const UNTIL_STOLEN_ABILITIES = ['Speedster', 'Speedster+', 'Magnet', 'Magnet+', 'Sniper', 'Sniper+', 'Tank', 'Tank+'];
+        const FIRST_NAMES = ['Rex', 'Zoe', 'Leo', 'Mia', 'Sam', 'Ivy', 'Max', 'Fay', 'Eli', 'Ada', 'Ian', 'Eva', 'Ash', 'Kai', 'Jax', 'Nyx', 'Ora', 'Taz', 'Una', 'Van'];
+
+        let blueTeam = [];
+        let redTeam = []; 
+
+        let game = {
+            state: 'menu', timeSeconds: 180, startTime: 0, lastTimestamp: 0,
+            p1: { team: 'blue', index: -1 }, p2: { team: 'red', index: -1 },
+            scores: { blue: 0, red: 0 }, pot: { blue: 0, red: 0 }, potTimer: { blue: 0, red: 0 }, freeze: { blue: 0, red: 0 },
+            msgTimer: 0, animId: null, netMsg: "", playStyle: 'team'
+        };
+
+        let ball = { x: COURT_WIDTH/2, y: COURT_HEIGHT/2, radius: 8, color: '#ffffff', vx: 0, vy: 0, heldBy: null, lastHeldBy: null, cd: 0 };
+        let keys = {};
+        let gpState = { 
+            0: { act: false, abilTap: false, cyc: false, swt: false, start: false },
+            1: { act: false, abilTap: false, cyc: false, swt: false, start: false }
+        };
+
+        // --- GLOBALLY EXPOSED UI / HELPER FUNCTIONS ---
+        function displayMessage(msg, duration = 3000) { 
+            UI.msg.innerText = msg; 
+            game.msgTimer = duration; 
+        }
+        window.displayMessage = displayMessage;
+
+        window.setNetMode = (mode) => {
+            onlineMode = mode;
+            UI.btnLocal.className = mode==='local' ? "btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent" : "bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent";
+            UI.btnHost.className = mode==='host' ? "btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent" : "bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent";
+            UI.btnJoin.className = mode==='client' ? "btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent" : "bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent";
+            window.updateUIState();
+        };
+
+        window.setPlayStyle = (style) => {
+            playStyle = style;
+            UI.btnStyleTeam.className = style==='team' ? "btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent" : "bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent";
+            UI.btnStyleHero.className = style==='hero' ? "btn-toggle-active bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent" : "bg-gray-700 px-4 py-1.5 rounded font-bold text-white transition text-sm border border-transparent";
+            window.updateUIState();
+        };
+
+        window.updateUIState = () => {
+            UI.panelHost.style.display = onlineMode === 'host' ? 'block' : 'none';
+            UI.panelJoin.style.display = onlineMode === 'client' ? 'block' : 'none';
+            UI.panelSet.style.display = onlineMode !== 'client' ? 'grid' : 'none';
+            document.getElementById('play-style-container').style.display = onlineMode !== 'client' ? 'flex' : 'none';
+            
+            let showTeam = (onlineMode !== 'client' && playStyle === 'team');
+            let showHero = (onlineMode !== 'client' && playStyle === 'hero') || onlineMode === 'client';
+            
+            UI.panelBuilderTeam.style.display = showTeam ? 'block' : 'none';
+            UI.panelBuilderHero.style.display = showHero ? 'block' : 'none';
+
+            if (showHero) {
+                if (onlineMode === 'local') {
+                    document.getElementById('hero-p1-wrap').style.display = 'block';
+                    document.getElementById('hero-p2-wrap').style.display = 'block';
+                } else if (onlineMode === 'host') {
+                    document.getElementById('hero-p2-wrap').style.display = 'none'; 
+                    if (UI.hostSpectateCheck.checked) document.getElementById('hero-p1-wrap').style.display = 'none';
+                    else document.getElementById('hero-p1-wrap').style.display = 'block';
+                } else if (onlineMode === 'client') {
+                    document.getElementById('hero-p1-wrap').style.display = 'block';
+                    document.getElementById('hero-p2-wrap').style.display = 'none';
+                }
+            }
+
+            if (onlineMode === 'local') {
+                UI.btnStart.style.display = 'block';
+                UI.btnStart.innerText = "START LOCAL MATCH";
+                UI.btnStart.onclick = () => startGameLocal();
+                UI.lobbyDisplay.style.display = 'none';
+            } else {
+                UI.btnStart.style.display = 'none';
+                UI.lobbyDisplay.style.display = 'block';
+            }
+        };
+
+        window.toggleTutorial = () => { UI.tutorialUI.style.display = UI.tutorialUI.style.display === 'none' ? 'flex' : 'none'; };
+        
+        window.togglePause = () => {
+            if (onlineMode !== 'local') return; 
+            if (game.state === 'menu' || game.state === 'gameOver') return;
+            if (game.state === 'paused') { 
+                game.state = 'playing'; 
+                UI.pauseUI.style.display = 'none'; 
+                game.lastTimestamp = performance.now(); 
+                requestAnimationFrame(gameLoop); 
+            } 
+            else { 
+                game.state = 'paused'; UI.pauseUI.style.display = 'flex'; cancelAnimationFrame(game.animId);
+                const buildRoster = (teamArr, elId) => {
+                    document.getElementById(elId).innerHTML = teamArr.map(p => `
+                        <li class="flex justify-between items-center border-b border-gray-700 py-1">
+                            <span><strong class="text-white">${p.name||'P'+(p.index+1)}</strong> <span class="text-gray-500 text-xs">(${p.role.substr(0,3).toUpperCase()})</span></span>
+                            <span class="text-yellow-400 font-bold text-xs">${p.isNull ? 'NULLIFIED' : p.ability}</span>
+                        </li>`).join('');
+                };
+                buildRoster(blueTeam, 'pause-blue-roster'); buildRoster(redTeam, 'pause-red-roster');
+            }
+        };
+
+        window.toggleGuide = () => { UI.guideUI.style.display = UI.guideUI.style.display === 'none' ? 'flex' : 'none'; };
+        
+        window.resetGameState = () => { 
+            cancelAnimationFrame(game.animId); game.state = 'menu'; UI.endUI.style.display='none'; UI.pauseUI.style.display='none'; UI.startUI.style.display='flex'; UI.mobileControls.style.display='none'; ctx.clearRect(0,0,COURT_WIDTH,COURT_HEIGHT); 
+            if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+            document.getElementById('host-create-btn').style.display = 'inline-block';
+            document.getElementById('host-code-display').innerText = '';
+            UI.lobbyDisplay.style.display = 'none';
+            window.updateUIState();
+        };
+
+        // --- DOM BUILDERS ---
+        function generatePlayerRow(team, index, isHeroMode = false) {
+            let roles = ['goalkeeper', 'defender', 'defender', 'playmaker', 'rusher', 'farmer'];
+            let defaultRole = roles[Math.min(index, 5)];
+            let name = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+            if(isHeroMode) defaultRole = 'rusher';
+
+            const div = document.createElement('div');
+            div.className = "flex flex-wrap items-center gap-1.5 bg-gray-800 p-2 rounded border border-gray-700 text-xs w-full";
+            
+            let defaultAbility = 'None';
+            let rand = Math.random();
+            if (rand > 0.95) defaultAbility = ['Copycat', 'Null', 'Adaptation'][Math.floor(Math.random() * 3)];
+            else if (rand > 0.80) defaultAbility = ABILITIES.filter(a => a.includes('+'))[Math.floor(Math.random() * ABILITIES.filter(a => a.includes('+')).length)];
+            else if (rand > 0.5) defaultAbility = ABILITIES.filter(a => a !== 'None' && !a.includes('+') && !['Copycat', 'Null', 'Adaptation'].includes(a))[Math.floor(Math.random() * ABILITIES.filter(a => a !== 'None' && !a.includes('+') && !['Copycat', 'Null', 'Adaptation'].includes(a)).length)];
+
+            div.innerHTML = `
+                ${isHeroMode ? '' : `<span class="font-mono text-gray-400 w-4">#${index+1}</span>`}
+                <div class="flex items-center gap-1 border border-gray-600 rounded px-1"><input type="checkbox" class="show-name-check w-3 h-3" checked><input type="text" class="name-input w-12 bg-transparent text-white font-bold focus:outline-none" value="${name}"></div>
+                <select class="role-select w-16 p-1 rounded bg-gray-700 focus:outline-none">${ROLES.map(r => `<option value="${r}" ${r===defaultRole?'selected':''}>${r.substr(0,4)}.</option>`).join('')}</select>
+                <div class="flex flex-col gap-0.5 w-24">
+                    ${[1,2,3].map(i => `<select class="ab-select p-0.5 rounded bg-gray-700 focus:outline-none ${i===1?getColor(defaultAbility):'text-gray-400'}">${ABILITIES.map(a => `<option value="${a}" ${a===(i===1?defaultAbility:'None')?'selected':''} class="${getColor(a)}">${a}</option>`).join('')}</select>`).join('')}
+                </div>
+                <div class="grid grid-cols-5 gap-1 items-center flex-grow pl-2">
+                    ${['IQ','Spd','Stl','Kp','Chg'].map((l,i) => `<div class="flex items-center gap-1"><span class="text-gray-500 w-4">${l}</span><input type="number" min="1" max="150" value="50" class="stat-input w-9 text-center p-1 rounded bg-gray-700 focus:outline-none"></div>`).join('')}
+                </div>
+                <div class="flex items-center gap-1 null-range-container ml-1" style="${defaultAbility==='Null'?'display:flex;':'display:none;'}"><span class="text-purple-300">NRng</span><input type="number" min="1" max="150" value="50" class="stat-input null-input w-9 text-center p-1 rounded bg-gray-700 focus:outline-none"></div>
+                <div class="ml-auto flex flex-col items-end"><div class="slots-display text-blue-300 font-bold mb-0.5">0/3</div><span class="tot-display text-green-400 font-bold">0/350</span></div>
+            `;
+            
+            const selects = Array.from(div.querySelectorAll('.ab-select'));
+            const inputs = Array.from(div.querySelectorAll('.stat-input'));
+            const nullBox = div.querySelector('.null-range-container');
+            let prevVals = selects.map(s => s.value);
+
+            function updateRow(changedInput) {
+                let cost = selects.reduce((s, el) => s + getCost(el.value), 0);
+                let hasNull = selects.some(s => s.value === 'Null');
+                nullBox.style.display = hasNull ? 'flex' : 'none';
+                
+                div.querySelector('.slots-display').innerText = `${cost}/3`;
+                div.querySelector('.slots-display').className = cost > 3 ? 'slots-display text-red-500 font-bold' : 'slots-display text-blue-300 font-bold';
+
+                let cap = hasNull ? BASE_STAT_CAP + 50 : BASE_STAT_CAP;
+                let activeInputs = hasNull ? inputs : inputs.filter(i => !i.classList.contains('null-input'));
+                let total = activeInputs.reduce((sum, i) => sum + (parseInt(i.value)||0), 0);
+
+                if (UI.enforceCheck.checked && total > cap) {
+                    let diff = total - cap;
+                    if (changedInput && (parseInt(changedInput.value)||0) > diff) { changedInput.value = (parseInt(changedInput.value)||0) - diff; }
+                    else {
+                        let others = activeInputs.filter(i => i !== changedInput && (parseInt(i.value)||0) > 1);
+                        while(diff > 0 && others.length > 0) {
+                            let tgt = others[Math.floor(Math.random()*others.length)];
+                            let v = parseInt(tgt.value)||0; if (v>1) { tgt.value = v-1; diff--; } else { others = others.filter(x=>x!==tgt); }
+                        }
+                    }
+                    total = cap;
+                }
+                let totEl = div.querySelector('.tot-display');
+                totEl.innerText = `${total}/${cap}`;
+                totEl.className = `tot-display font-bold ${UI.enforceCheck.checked ? (total===cap?'text-green-400':'text-yellow-400') : 'text-gray-500'}`;
+            }
+
+            selects.forEach((s, i) => s.addEventListener('change', (e) => {
+                let cost = selects.reduce((sum, el) => sum + getCost(el.value), 0);
+                if (cost > 3) { e.target.value = prevVals[i]; alert("Max 3 Ability Slots!"); } 
+                else { prevVals[i] = e.target.value; e.target.className = `ab-select w-full p-0.5 rounded bg-gray-700 focus:outline-none ${getColor(e.target.value)}`; updateRow(); }
+            }));
+            inputs.forEach(i => i.addEventListener('input', (e) => {
+                let v=parseInt(e.target.value); if(v>150)e.target.value=150; if(v<1)e.target.value=1; updateRow(e.target);
+            }));
+            UI.enforceCheck.addEventListener('change', () => updateRow());
+            
+            let numStats = defaultAbility === 'Null' ? 6 : 5;
+            let targetCap = defaultAbility === 'Null' ? BASE_STAT_CAP + 50 : BASE_STAT_CAP;
+            let randStats = generateRandomStats(numStats, targetCap);
+            inputs.forEach((inp, i) => { if(i < numStats) inp.value = randStats[i]; });
+            updateRow(); return div;
+        }
+
+        window.generateFullTeams = () => {
+            let bs = Math.max(1, Math.min(30, parseInt(document.getElementById('blue-size-input').value)||5));
+            let rs = Math.max(1, Math.min(30, parseInt(document.getElementById('red-size-input').value)||5));
+            document.getElementById('blue-size-input').value = bs; document.getElementById('red-size-input').value = rs;
+            UI.blueList.innerHTML = ''; UI.redList.innerHTML = '';
+            for(let i=0; i<bs; i++) UI.blueList.appendChild(generatePlayerRow('blue', i));
+            for(let i=0; i<rs; i++) UI.redList.appendChild(generatePlayerRow('red', i));
+        }; 
+        window.generateFullTeams();
+        
+        UI.p1HeroContainer.appendChild(generatePlayerRow('hero', 0, true));
+        UI.p2HeroContainer.appendChild(generatePlayerRow('hero', 0, true));
+
+        function extractRowData(r) {
+            let abs = Array.from(r.querySelectorAll('.ab-select')).map(s=>s.value).filter(v=>v!=='None');
+            let inputs = r.querySelectorAll('.stat-input');
+            return {
+                name: r.querySelector('.show-name-check').checked ? r.querySelector('.name-input').value.substr(0,10) : "",
+                role: r.querySelector('.role-select').value,
+                abs: abs.length ? abs : ['None'],
+                iq: (parseInt(inputs[0].value)||50)/100, spd: parseInt(inputs[1].value)||50, stl: parseInt(inputs[2].value)||50,
+                kp: parseInt(inputs[3].value)||50, chg: parseInt(inputs[4].value)||50, nrng: parseInt(inputs[5].value)||50
+            };
+        }
+
+        function buildPlayerObject(d, team, index, isHumanUid = null) {
+            let startX = team==='blue' ? 100+Math.random()*300 : COURT_WIDTH-100-Math.random()*300;
+            if(d.role==='goalkeeper') startX = team==='blue'? BLUE_HOLE.x+40 : RED_HOLE.x-40;
+            return {
+                uid: isHumanUid,
+                team, index, x: startX, y: 100+Math.random()*(COURT_HEIGHT-200),
+                name: d.name, role: d.role, abs: d.abs, curAbIdx: 0,
+                ability: d.abs[0], baseAbility: d.abs[0], activeAbility: 'None', stAbil: 'None',
+                iq: d.iq, spd: d.spd, bSpd: d.spd, stl: d.stl, bStl: d.stl, kp: d.kp, bKp: d.kp, chg: d.chg, nrng: d.nrng,
+                radius: 15, bRad: 15, vx:0, vy:0, dx: (team==='blue'?1:-1), dy:0,
+                isCC: d.abs.includes('Copycat'), isAd: d.abs.includes('Adaptation'),
+                charge: 0, storedEnergy: 0, aiMotivatorActive: false, motTarget: null, motType: null,
+                timer: 0, dTimer: 0, cd: 0, spCd: 0, cycleTimer: 0, isNull: false, nullTimer: 0,
+                steal: false, sTimer: 0, sCd: 0, jTimer: 0, rank: 99
+            };
+        }
+
+        function loadTeam(listEl, team) {
+            return Array.from(listEl.children).map((r, i) => buildPlayerObject(extractRowData(r), team, i, null));
+        }
+
+        // --- ONLINE LOBBY LOGIC ---
+        function updateLobbyUI(roomData) {
+            UI.lobbyList.innerHTML = '';
+            let isHostMe = roomData.host === userId;
+            
+            Object.keys(roomData.players).forEach(uid => {
+                let p = roomData.players[uid];
+                let isMe = uid === userId;
+                let color = p.team === 'blue' ? 'text-blue-400' : 'text-red-400';
+                let txt = p.isSpectator ? `<span class="text-gray-500">[SPECTATOR]</span>` : `<span class="${color}">${isMe?'[YOU] ':''}${p.name || 'Unknown'}</span> - ${p.role.toUpperCase()} <span class="text-gray-500">(${p.team.toUpperCase()})</span>`;
+                UI.lobbyList.innerHTML += `<li>${txt}</li>`;
+            });
+            
+            if (isHostMe) {
+                let btn = document.getElementById('lobby-start-btn');
+                if (!btn) {
+                    btn = document.createElement('button'); btn.id = 'lobby-start-btn';
+                    btn.className = "w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg mt-4 transition";
+                    btn.innerText = "START ONLINE MATCH"; btn.onclick = () => hostStartOnlineGame();
+                    document.getElementById('lobby-action-container').appendChild(btn);
+                }
+            } else {
+                let btn = document.getElementById('lobby-start-btn'); if(btn) btn.remove();
+                if (!document.getElementById('lobby-wait-text')) {
+                    let txt = document.createElement('p'); txt.id = 'lobby-wait-text';
+                    txt.className = "text-yellow-400 text-sm mt-4 text-center italic"; txt.innerText = "Waiting for host to start game...";
+                    document.getElementById('lobby-action-container').appendChild(txt);
+                }
+            }
+        }
+
+        function getMyHeroConfig(isP1) {
+            let row = isP1 ? UI.p1HeroContainer.firstElementChild : UI.p2HeroContainer.firstElementChild;
+            let d = extractRowData(row);
+            d.team = isP1 ? UI.p1HeroTeam.value : UI.p2HeroTeam.value;
+            return d;
+        }
+
+        document.getElementById('host-create-btn').onclick = async () => {
+            if(!isAuthReady) return;
+            roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+            roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            
+            try {
+                let playersMap = {};
+                let isSpec = UI.hostSpectateCheck.checked;
+                
+                if (!isSpec) {
+                    if (playStyle === 'hero') playersMap[userId] = getMyHeroConfig(true);
+                    else playersMap[userId] = { isSpectator: false, team: 'blue', isFullTeamHost: true };
+                } else {
+                    playersMap[userId] = { isSpectator: true };
+                }
+
+                await setDoc(roomRef, {
+                    status: 'lobby', host: userId,
+                    config: { timeSeconds: (parseInt(document.getElementById('game-time-input').value)||3)*60, playStyle: playStyle },
+                    players: playersMap, inputs: {}
+                });
+                
+                document.getElementById('host-create-btn').style.display = 'none';
+                document.getElementById('host-code-display').innerText = `CODE: ${roomId}`;
+                
+                unsubscribeRoom = onSnapshot(roomRef, (snap) => {
+                    if (!snap.exists()) return;
+                    let d = snap.data(); roomDataCache = d;
+                    if (d.status === 'lobby') updateLobbyUI(d);
+                    if (d.inputs && onlineMode === 'host') remoteInputs = d.inputs;
+                });
+            } catch(e) { console.error("Host Error:", e); alert("Failed to host."); }
+        };
+
+        document.getElementById('join-room-btn').onclick = async () => {
+            if(!isAuthReady) return;
+            let code = document.getElementById('join-code-input').value.trim().toUpperCase();
+            if(code.length !== 4) { alert("Invalid code."); return; }
+            roomId = code; roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            document.getElementById('join-status-msg').innerText = "Connecting...";
+
+            try {
+                let snap = await getDoc(roomRef);
+                if(snap.exists() && snap.data().status === 'lobby') {
+                    let d = snap.data();
+                    playStyle = d.config.playStyle; window.updateUIState(); 
+                    
+                    let myData = {};
+                    if (playStyle === 'hero') myData = getMyHeroConfig(true); 
+                    else myData = { isSpectator: false, team: 'red', isFullTeamClient: true }; 
+                    
+                    await updateDoc(roomRef, { [`players.${userId}`]: myData });
+                    
+                    unsubscribeRoom = onSnapshot(roomRef, (s) => {
+                        if (!s.exists()) return;
+                        let d = s.data(); roomDataCache = d;
+                        
+                        if (d.status === 'lobby') updateLobbyUI(d);
+                        if (d.status === 'playing' && game.state === 'menu') {
+                            game.timeSeconds = d.config.timeSeconds;
+                            game.playStyle = d.config.playStyle;
+                            blueTeam = d.config.blueTeam.map((p,i) => buildPlayerObject(p, 'blue', i, p.uid));
+                            redTeam = d.config.redTeam.map((p,i) => buildPlayerObject(p, 'red', i, p.uid));
+                            startOnlineGameLoop();
+                        }
+                        if (d.status === 'playing' && d.state && onlineMode === 'client') applyNetworkState(d.state);
+                    });
+                    document.getElementById('join-status-msg').innerText = "Connected!";
+                } else document.getElementById('join-status-msg').innerText = "Room not found or full.";
+            } catch(e) { console.error("Join Error:", e); document.getElementById('join-status-msg').innerText = "Connection failed."; }
+        };
+
+        async function hostStartOnlineGame() {
+            if(!roomDataCache) return;
+            
+            let bTeamRaw = []; let rTeamRaw = [];
+            game.playStyle = roomDataCache.config.playStyle;
+
+            if (game.playStyle === 'hero') {
+                Object.keys(roomDataCache.players).forEach(uid => {
+                    let pd = roomDataCache.players[uid]; 
+                    if (!pd.isSpectator) { pd.uid = uid; if (pd.team === 'blue') bTeamRaw.push(pd); else rTeamRaw.push(pd); }
+                });
+                let bSize = parseInt(document.getElementById('blue-size-input').value) || 5;
+                let rSize = parseInt(document.getElementById('red-size-input').value) || 5;
+                while(bTeamRaw.length < bSize) bTeamRaw.push(generateRandomBotData('blue'));
+                while(rTeamRaw.length < rSize) rTeamRaw.push(generateRandomBotData('red'));
+                
+                blueTeam = bTeamRaw.map((p,i) => buildPlayerObject(p, 'blue', i, p.uid));
+                redTeam = rTeamRaw.map((p,i) => buildPlayerObject(p, 'red', i, p.uid));
+            } else {
+                blueTeam = loadTeam(UI.blueList, 'blue'); 
+                redTeam = loadTeam(UI.redList, 'red');
+                bTeamRaw = blueTeam; rTeamRaw = redTeam; 
+                
+                let hostPlayerInfo = roomDataCache.players[userId];
+                if (!hostPlayerInfo.isSpectator) {
+                     blueTeam.forEach(p => p.uid = userId); 
+                }
+                let clientUid = Object.keys(roomDataCache.players).find(id => id !== userId && !roomDataCache.players[id].isSpectator);
+                if (clientUid) {
+                     redTeam.forEach(p => p.uid = clientUid); 
+                }
+            }
+
+            await updateDoc(roomRef, { status: 'playing', 'config.blueTeam': bTeamRaw, 'config.redTeam': rTeamRaw });
+            startOnlineGameLoop();
+        }
+
+        function startOnlineGameLoop() {
+            document.getElementById('current-blue-name').innerText = "BLUE TEAM"; document.getElementById('current-red-name').innerText = "RED TEAM";
+            if (UI.mobileCheck.checked) UI.mobileControls.style.display = 'flex'; else UI.mobileControls.style.display = 'none';
+            
+            let meP = blueTeam.concat(redTeam).find(p => p.uid === userId);
+            if (meP) {
+                game.p1.team = meP.team; 
+                game.p1.index = game.playStyle === 'hero' ? meP.index : Math.max(0, (meP.team==='blue'?blueTeam:redTeam).findIndex(x=>x.role!=='goalkeeper'));
+            } else {
+                game.p1.team = 'none'; game.p1.index = -1; // Spectating
+            }
+            game.p2.team = 'none'; game.p2.index = -1; 
+
+            document.getElementById('local-control-hints').style.display = game.playStyle === 'team' ? 'grid' : 'none';
+            document.getElementById('hero-control-hints').style.display = game.playStyle === 'hero' ? 'block' : 'none';
+
+            ball = { x: COURT_WIDTH/2, y: COURT_HEIGHT/2, radius: 8, color: '#fff', vx:0, vy:0, heldBy:null, lastHeldBy:null, cd:0 };
+            game.scores = {blue:0, red:0}; game.pot = {blue:0, red:0}; game.potTimer = {blue:0, red:0}; game.freeze = {blue:0, red:0};
+            game.startTime = performance.now(); game.lastTimestamp = performance.now(); game.state = 'playing';
+            
+            document.getElementById('network-status').style.display = 'block';
+            UI.startUI.style.display = 'none'; UI.endUI.style.display = 'none';
+            game.animId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGameLocal() {
+            game.timeSeconds = (parseInt(document.getElementById('game-time-input').value)||3)*60;
+            game.blueName = document.getElementById('blue-team-name-input').value.trim()||'Blue Team'; game.redName = document.getElementById('red-team-name-input').value.trim()||'Red Team';
+            document.getElementById('current-blue-name').innerText = game.blueName.toUpperCase(); document.getElementById('current-red-name').innerText = game.redName.toUpperCase();
+            
+            game.playStyle = playStyle;
+            if (UI.mobileCheck.checked) UI.mobileControls.style.display = 'flex'; else UI.mobileControls.style.display = 'none';
+            
+            if (playStyle === 'team') {
+                blueTeam = loadTeam(UI.blueList, 'blue'); redTeam = loadTeam(UI.redList, 'red');
+                game.p1.team = document.getElementById('p1-team-select').value; game.p2.team = document.getElementById('p2-team-select').value;
+                
+                if (game.p1.team !== 'none') { let t = game.p1.team==='blue'?blueTeam:redTeam; game.p1.index = Math.max(0, t.findIndex(p=>p.role!=='goalkeeper')); } else game.p1.index = -1;
+                if (game.p2.team !== 'none') { let t = game.p2.team==='blue'?blueTeam:redTeam; let startI = t.findIndex((p,i) => p.role!=='goalkeeper' && (game.p1.team!==game.p2.team || game.p1.index!==i)); game.p2.index = startI !== -1 ? startI : 0; } else game.p2.index = -1;
+                
+                document.getElementById('local-control-hints').style.display = 'grid'; document.getElementById('hero-control-hints').style.display = 'none';
+            } else {
+                let h1D = getMyHeroConfig(true); let h2D = getMyHeroConfig(false);
+                let p2TeamSel = UI.p2HeroTeam.value;
+                let humans = [{ d: h1D, t: h1D.team, id: 'local_p1' }];
+                if (p2TeamSel !== 'none') humans.push({ d: h2D, t: p2TeamSel, id: 'local_p2' });
+                
+                let bTeamRaw = []; let rTeamRaw = [];
+                humans.forEach(h => { if(h.t==='blue') bTeamRaw.push(h); else rTeamRaw.push(h); });
+                
+                let bSize = parseInt(document.getElementById('blue-size-input').value) || 5; let rSize = parseInt(document.getElementById('red-size-input').value) || 5;
+                while(bTeamRaw.length < bSize) bTeamRaw.push({ d: generateRandomBotData('blue'), t: 'blue', id: null });
+                while(rTeamRaw.length < rSize) rTeamRaw.push({ d: generateRandomBotData('red'), t: 'red', id: null });
+                
+                blueTeam = bTeamRaw.map((p,i) => buildPlayerObject(p.d, 'blue', i, p.id));
+                redTeam = rTeamRaw.map((p,i) => buildPlayerObject(p.d, 'red', i, p.id));
+                
+                let p1 = blueTeam.concat(redTeam).find(x=>x.uid==='local_p1'); game.p1.team = p1.team; game.p1.index = p1.index;
+                if (p2TeamSel !== 'none') { let p2 = blueTeam.concat(redTeam).find(x=>x.uid==='local_p2'); game.p2.team = p2.team; game.p2.index = p2.index; } else { game.p2.team = 'none'; game.p2.index = -1; }
+                
+                document.getElementById('local-control-hints').style.display = 'none'; document.getElementById('hero-control-hints').style.display = 'block'; 
+            }
+            
+            ball = { x: COURT_WIDTH/2, y: COURT_HEIGHT/2, radius: 8, color: '#fff', vx:0, vy:0, heldBy:null, lastHeldBy:null, cd:0 };
+            game.scores = {blue:0, red:0}; game.pot = {blue:0, red:0}; game.potTimer = {blue:0, red:0}; game.freeze = {blue:0, red:0};
+            game.startTime = performance.now(); game.lastTimestamp = performance.now(); game.state = 'playing';
+            
+            document.getElementById('network-status').style.display = 'none';
+            UI.startUI.style.display = 'none'; UI.endUI.style.display = 'none';
+            game.animId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Controls & Identification ---
+        function isPlayerActive(team, index) {
+            if (game.p1.team === team && game.p1.index === index) return 1;
+            if (game.p2.team === team && game.p2.index === index) return 2;
+            return 0;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (game.state === 'playing' || game.state === 'overtime') {
+                if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
+            }
+            let k = e.key.toLowerCase(); keys[k] = true;
+            if (k==='escape' || k==='p') window.togglePause();
+            if (game.state !== 'playing' && game.state !== 'overtime') return;
+            
+            if (onlineMode !== 'client') {
+                if (e.key === ' ') handleAction(1);
+                if (k === 'q') switchPlayer(1);
+                if (k === 'e') { let p = getActivePlayer(1); if(p && p.ability !== 'Motivator+') activateAbility(1); }
+                if (k === 'c') cycleAbility(1);
+                
+                if (e.key === 'Enter') handleAction(2);
+                if (e.key === 'Shift' && e.location === 2) switchPlayer(2);
+                if (k === '/') { let p = getActivePlayer(2); if(p && p.ability !== 'Motivator+') activateAbility(2); }
+                if (k === '.') cycleAbility(2);
+            }
+        });
+        document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; if(e.key==='Shift') keys['shift']=false; });
+        
+        const bindTouch = (id, key, action) => {
+            let el = document.getElementById(id); if(!el) return;
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key]=true; if(action && onlineMode!=='client')action(); });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key]=false; });
+        };
+        bindTouch('btn-up', 'w'); bindTouch('btn-down', 's'); bindTouch('btn-left', 'a'); bindTouch('btn-right', 'd');
+        bindTouch('btn-act', ' ', () => {if(game.state==='playing')handleAction(1)});
+        bindTouch('btn-switch', 'q', () => {if(game.state==='playing')switchPlayer(1)});
+        bindTouch('btn-ability', 'e', () => {if(game.state==='playing') { let p = getActivePlayer(1); if(p && p.ability !== 'Motivator+') activateAbility(1); }});
+        bindTouch('btn-cycle', 'c', () => {if(game.state==='playing')cycleAbility(1)});
+
+        function getActivePlayer(pNum) {
+            let pDef = pNum === 1 ? game.p1 : game.p2;
+            if (pDef.team === 'none' || pDef.index === -1) return null;
+            return (pDef.team === 'blue' ? blueTeam : redTeam)[pDef.index];
+        }
+
+        function cycleAbility(pNum, forceP) {
+            let p = forceP || getActivePlayer(pNum); if(!p) return;
+            if (p.timer>0 || p.dTimer>0 || p.activeAbility!=='None') { if(!forceP) displayMessage("Can't swap while active!", 1000); return; }
+            if (p.isCC && p.ability!=='Copycat') {
+                p.ability = 'Copycat'; p.charge=0; p.activeAbility='None'; if(!forceP) displayMessage(`${p.name||'P'+pNum} Reset!`, 1500);
+            } else if (p.abs.length > 1 && !p.isNull) {
+                p.curAbIdx = (p.curAbIdx+1)%p.abs.length; p.ability = p.abs[p.curAbIdx]; p.charge=0; p.activeAbility='None';
+                if(!forceP) displayMessage(`${p.name||'P'+pNum} Swapped: ${p.ability}`, 1500);
+            }
+        }
+
+        function throwBall(team, idx) {
+            let p = (team === 'blue' ? blueTeam : redTeam)[idx];
+            ball.heldBy = null; ball.lastHeldBy = { team: team, index: idx }; ball.cd = 500;
+            let jitter = p.uid ? 0 : (1-p.iq)*0.3;
+            let a = Math.atan2(p.dy || 0, p.dx || 1) + (Math.random()-0.5)*jitter;
+            let speedMod = 1.0;
+            if (p.timer > 0) { if (p.activeAbility === 'Sniper') speedMod = 1.5; if (p.activeAbility === 'Sniper+') speedMod = 2.5; }
+            ball.vx = Math.cos(a) * THROW_SPEED * speedMod; ball.vy = Math.sin(a) * THROW_SPEED * speedMod;
+        }
+
+        function handleAction(pNum) {
+            let p = getActivePlayer(pNum); if(!p) return;
+            if(ball.heldBy && ball.heldBy.team===p.team && ball.heldBy.index===p.index) throwBall(p.team, p.index);
+            else if (p.sCd<=0 && game.freeze[p.team]<=0) { p.steal=true; p.sTimer=0.3; p.sCd=1.0; }
+        }
+
+        function activateAbility(pNum, forceP) {
+            let p = forceP || getActivePlayer(pNum); if(!p) return;
+            if(game.freeze[p.team]>0 || p.isNull || p.ability === 'Motivator+') return;
+
+            if (p.ability==='Null' && p.cd<=0) {
+                p.cd=15; p.timer=0.5; p.activeAbility='Null'; let hit=0;
+                (p.team==='blue'?redTeam:blueTeam).forEach(e=>{
+                    if(getDist(p,e)<p.radius+15+p.nrng && !e.isNull){ e.stAbil=e.ability; e.ability='None'; e.isNull=true; e.nullTimer=10; e.activeAbility='None'; e.timer=0; e.dTimer=0; hit++; }
+                });
+                if(hit>0)displayMessage(`${p.name||'Player'} Nullified ${hit} Enemies!`, 2000);
+            } else if (p.charge>=100) {
+                p.charge=0; p.activeAbility=p.ability;
+                if(UNTIL_STOLEN_ABILITIES.includes(p.ability)) p.timer=Infinity;
+                else if(p.ability==='Titan') p.timer=8; else if(p.ability==='Titan+') p.timer=10;
+                else if(p.ability.includes('Repel')) p.timer=5;
+                else if(p.ability.includes('Blink')) { 
+                    let d = p.ability.includes('+')?400:150; let l=Math.sqrt(p.dx*p.dx+p.dy*p.dy)||1; 
+                    p.x+=(p.dx||0)/l*d; p.y+=(p.dy||0)/l*d; 
+                    p.x=Math.max(p.radius, Math.min(COURT_WIDTH-p.radius, p.x)); p.y=Math.max(p.radius, Math.min(COURT_HEIGHT-p.radius, p.y)); 
+                }
+                else if(p.ability==='Freeze+') { game.freeze[p.team==='blue'?'red':'blue']=3.0; displayMessage("FREEZE+ ACTIVATED!", 2000); }
+            }
+        }
+
+        function switchPlayer(pNum) {
+            if (game.playStyle === 'hero') return; 
+            let pDef = pNum === 1 ? game.p1 : game.p2;
+            if (pDef.team === 'none') return;
+            let teamArr = pDef.team === 'blue' ? blueTeam : redTeam;
+            let otherDef = pNum === 1 ? game.p2 : game.p1;
+            
+            let best=-1, minD=Infinity;
+            teamArr.forEach((p,i)=>{ 
+                if(i===pDef.index) return;
+                if(otherDef.team === pDef.team && otherDef.index === i) return; 
+                if(p.role==='goalkeeper'&&getDist(p,ball)>150) return;
+                let d=getDist(p,ball); if(d<minD){minD=d; best=i;} 
+            });
+            if(best===-1) {
+                minD=Infinity;
+                teamArr.forEach((p,i)=>{ if(otherDef.team === pDef.team && otherDef.index === i) return; let d=getDist(p,ball); if(d<minD){minD=d; best=i;} });
+            }
+            if(best!==-1) pDef.index = best;
+        }
+
+        function getLocalInputMap() {
+            let gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+            return {
+                up: keys['w'] || keys['arrowup'] || (gp && gp.buttons[12]?.pressed) || (gp && gp.axes[1] < -0.2),
+                down: keys['s'] || keys['arrowdown'] || (gp && gp.buttons[13]?.pressed) || (gp && gp.axes[1] > 0.2),
+                left: keys['a'] || keys['arrowleft'] || (gp && gp.buttons[14]?.pressed) || (gp && gp.axes[0] < -0.2),
+                right: keys['d'] || keys['arrowright'] || (gp && gp.buttons[15]?.pressed) || (gp && gp.axes[0] > 0.2),
+                act: keys[' '] || keys['enter'] || (gp && gp.buttons[0]?.pressed),
+                abil: keys['e'] || keys['/'] || (gp && (gp.buttons[2]?.pressed || gp.buttons[7]?.pressed)),
+                cyc: keys['c'] || keys['.'] || (gp && (gp.buttons[1]?.pressed || gp.buttons[3]?.pressed)),
+                swt: keys['q'] || keys['shift'] || (gp && (gp.buttons[4]?.pressed || gp.buttons[5]?.pressed))
+            };
+        }
+
+        // --- NETWORK SYNC HELPERS ---
+        function serializeState() {
+            return {
+                b: blueTeam.map(p=>[Math.round(p.x), Math.round(p.y), p.activeAbility, p.isNull?1:0, Math.round(p.charge), Math.round(p.storedEnergy), p.motTarget?p.motTarget.index:-1, p.motTarget?p.motTarget.team==='blue'?1:0:-1, p.motType==='drain'?1:0, p.ability, p.steal?1:0]),
+                r: redTeam.map(p=>[Math.round(p.x), Math.round(p.y), p.activeAbility, p.isNull?1:0, Math.round(p.charge), Math.round(p.storedEnergy), p.motTarget?p.motTarget.index:-1, p.motTarget?p.motTarget.team==='blue'?1:0:-1, p.motType==='drain'?1:0, p.ability, p.steal?1:0]),
+                bl: [Math.round(ball.x), Math.round(ball.y), ball.heldBy?ball.heldBy.index:-1, ball.heldBy?(ball.heldBy.team==='blue'?1:0):-1],
+                sc: [game.scores.blue, game.scores.red], pt: [game.pot.blue, game.pot.red],
+                msg: UI.msg.innerText, p1i: game.p1.index, p2i: game.p2.index
+            };
+        }
+        function applyNetworkState(s) {
+            s.b.forEach((d, i) => {
+                let p = blueTeam[i]; if(!p)return;
+                p.x = d[0]; p.y = d[1]; p.activeAbility = d[2]; p.isNull = d[3]===1; p.charge = d[4]; p.storedEnergy = d[5]; 
+                if(d[6]!==-1) p.motTarget = (d[7]===1?blueTeam:redTeam)[d[6]]; else p.motTarget=null;
+                p.motType = d[8]===1?'drain':'boost'; p.ability = d[9]; p.steal = d[10]===1;
+            });
+            s.r.forEach((d, i) => {
+                let p = redTeam[i]; if(!p)return;
+                p.x = d[0]; p.y = d[1]; p.activeAbility = d[2]; p.isNull = d[3]===1; p.charge = d[4]; p.storedEnergy = d[5]; 
+                if(d[6]!==-1) p.motTarget = (d[7]===1?blueTeam:redTeam)[d[6]]; else p.motTarget=null;
+                p.motType = d[8]===1?'drain':'boost'; p.ability = d[9]; p.steal = d[10]===1;
+            });
+            ball.x = s.bl[0]; ball.y = s.bl[1]; 
+            if (s.bl[2] !== -1) ball.heldBy = { index: s.bl[2], team: s.bl[3]===1?'blue':'red' }; else ball.heldBy = null;
+            game.scores.blue = s.sc[0]; game.scores.red = s.sc[1]; game.pot.blue = s.pt[0]; game.pot.red = s.pt[1];
+            game.netMsg = s.msg; game.p1.index = s.p1i; game.p2.index = s.p2i;
+        }
+
+        function pollGamepadsLocal() {
+            const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+            for (let i = 0; i < 2; i++) {
+                const gp = gps[i]; if (!gp) continue;
+                let pDef = i === 0 ? game.p1 : game.p2;
+                if (pDef.team === 'none') continue;
+                let p = (pDef.team==='blue'?blueTeam:redTeam)[pDef.index];
+                if (!p) continue;
+                
+                if (gp.buttons[0]?.pressed && !gpState[i].act) { gpState[i].act = true; if(game.state==='playing') handleAction(i+1); }
+                else if (!gp.buttons[0]?.pressed) gpState[i].act = false;
+
+                if ((gp.buttons[4]?.pressed || gp.buttons[5]?.pressed) && !gpState[i].swt) { gpState[i].swt = true; if(game.state==='playing') switchPlayer(i+1); }
+                else if (!gp.buttons[4]?.pressed && !gp.buttons[5]?.pressed) gpState[i].swt = false;
+
+                if ((gp.buttons[1]?.pressed || gp.buttons[3]?.pressed) && !gpState[i].cyc) { gpState[i].cyc = true; if(game.state==='playing') cycleAbility(i+1); }
+                else if (!gp.buttons[1]?.pressed && !gp.buttons[3]?.pressed) gpState[i].cyc = false;
+
+                if (gp.buttons[2]?.pressed && !gpState[i].abilTap) { 
+                    gpState[i].abilTap = true; if(game.state==='playing' && p.ability !== 'Motivator+') activateAbility(i+1); 
+                } else if (!gp.buttons[2]?.pressed) gpState[i].abilTap = false;
+                
+                if (gp.buttons[9]?.pressed && !gpState[i].start) { gpState[i].start = true; window.togglePause(); } 
+                else if (!gp.buttons[9]?.pressed) gpState[i].start = false;
+            }
+        }
+
+        // --- Game Loop ---
+        function gameLoop(stamp) {
+            try {
+                let dt = (stamp - game.lastTimestamp) / 1000; game.lastTimestamp = stamp;
+                if (dt > 0.1) dt = 0.1; if (dt < 0 || isNaN(dt)) dt = 0.016;
+
+                if (game.state !== 'playing' && game.state !== 'overtime') { requestAnimationFrame(gameLoop); return; }
+
+                if (onlineMode === 'local') {
+                    pollGamepadsLocal();
+                } else if (onlineMode === 'client') {
+                    let curInp = getLocalInputMap();
+                    let str = JSON.stringify(curInp);
+                    if (str !== lastSentInputs && roomRef) { updateDoc(roomRef, { [`inputs.${userId}`]: curInp }).catch(e=>{}); lastSentInputs = str; }
+                    if (game.netMsg) UI.msg.innerText = game.netMsg;
+                } else if (onlineMode === 'host') {
+                    Object.keys(remoteInputs).forEach(uid => {
+                        if (uid === userId) return;
+                        let inps = remoteInputs[uid] || {}; let prev = prevRemoteInputs[uid] || {};
+                        let p = blueTeam.find(x=>x.uid===uid) || redTeam.find(x=>x.uid===uid);
+                        if (p) {
+                            if (inps.act && !prev.act) { throwBall(p.team, p.index); p.steal=true; p.sTimer=0.3; p.sCd=1.0; }
+                            if (inps.abil && !prev.abil && p.ability !== 'Motivator+') activateAbility(0, p);
+                            if (inps.cyc && !prev.cyc) cycleAbility(0, p);
+                            if (inps.swt && !prev.swt && game.playStyle === 'team') {
+                                let tArr = p.team==='blue'?blueTeam:redTeam; p.uid = null;
+                                let nI = (p.index+1)%tArr.length; tArr[nI].uid = uid;
+                            }
+                        }
+                        prevRemoteInputs[uid] = { ...inps };
+                    });
+                }
+
+                if (onlineMode !== 'client') {
+                    if(ball.cd>0) ball.cd-=dt*1000;
+                    if(game.msgTimer>0){ game.msgTimer-=dt*1000; if(game.msgTimer<=0)UI.msg.innerText=''; }
+                    if(game.freeze.blue>0) game.freeze.blue-=dt; if(game.freeze.red>0) game.freeze.red-=dt;
+
+                    blueTeam.forEach(p => updatePlayerPhysics(p, 'blue', dt));
+                    redTeam.forEach(p => updatePlayerPhysics(p, 'red', dt));
+                    
+                    if(ball.heldBy) { 
+                        let p = (ball.heldBy.team==='blue'?blueTeam:redTeam)[ball.heldBy.index]; 
+                        if (p) { ball.x=p.x; ball.y=p.y; ball.vx=0; ball.vy=0; }
+                    } else { 
+                        ball.x += (ball.vx || 0); ball.y += (ball.vy || 0); ball.vx*=0.98; ball.vy*=0.98; 
+                        if(ball.x<8||ball.x>COURT_WIDTH-8)ball.vx*=-1; if(ball.y<8||ball.y>COURT_HEIGHT-8)ball.vy*=-1; 
+                    }
+
+                    checkInteractions(stamp);
+                    
+                    if (onlineMode === 'host' && stamp - lastSyncTime > 66 && roomRef) { 
+                        updateDoc(roomRef, { state: serializeState() }).catch(e=>{}); lastSyncTime = stamp; 
+                    }
+                }
+
+                let elapsed = (stamp - game.startTime)/1000; let rem = Math.max(0, Math.ceil(game.timeSeconds - elapsed));
+                UI.timer.innerText = `${String(Math.floor(rem/60)).padStart(2,'0')}:${String(rem%60).padStart(2,'0')}`;
+                
+                if (onlineMode !== 'client' && rem<=0 && game.state==='playing') { 
+                    if(game.scores.blue===game.scores.red){game.state='overtime'; displayMessage('OVERTIME!');} 
+                    else endGame(game.scores.blue>game.scores.red?'Blue':'Red'); 
+                }
+
+                UI.blueScore.innerText = game.scores.blue; UI.bluePot.innerText = game.pot.blue;
+                UI.redScore.innerText = game.scores.red; UI.redPot.innerText = game.pot.red;
+                
+                draw();
+            } catch(e) { console.error("GameLoop Error:", e); }
+            game.animId = requestAnimationFrame(gameLoop);
+        }
+
+        function updatePlayerPhysics(p, tName, dt) {
+            if(p.isNull){ p.nullTimer-=dt; if(p.nullTimer<=0){ p.isNull=false; p.ability=p.stAbil; } }
+            
+            if(p.timer<=0 && p.dTimer<=0 && !p.isNull && p.activeAbility !== 'Motivator+') { 
+                let chargeStatMult = 0.5 + ((p.chg||50) / 100);
+                let baseRate = FAST_CHARGE_ABILITIES.includes(p.ability) ? 20 : 10;
+                if(p.isCC && p.ability !== 'Copycat') baseRate *= 1.5; 
+                p.charge = Math.min(100, p.charge + dt * baseRate * chargeStatMult); 
+            }
+            
+            if(p.cd>0) p.cd-=dt; if(p.spCd>0) p.spCd-=dt;
+            if(p.sTimer>0){ p.sTimer-=dt; if(p.sTimer<=0)p.steal=false; } if(p.sCd>0) p.sCd-=dt;
+            
+            if(p.timer>0 && p.timer!==Infinity){ p.timer-=dt; if(p.timer<=0){ if(p.activeAbility==='Titan') p.dTimer=4; else p.activeAbility='None'; } }
+            if(p.dTimer>0){ p.dTimer-=dt; if(p.dTimer<=0)p.activeAbility='None'; }
+
+            p.radius=p.bRad; p.spd=p.bSpd; p.stl=p.bStl; p.kp=p.bKp; p.motTarget=null;
+            
+            let isHoldingMot = false; let mx=0, my=0;
+
+            if (onlineMode === 'local') {
+                let pNum = isPlayerActive(p.team, p.index);
+                if (pNum > 0) {
+                    if(pNum===1){ if(keys['w'])my=-1; if(keys['s'])my=1; if(keys['a'])mx=-1; if(keys['d'])mx=1; if(keys['e'])isHoldingMot=true; }
+                    else { if(keys['arrowup'])my=-1; if(keys['arrowdown'])my=1; if(keys['arrowleft'])mx=-1; if(keys['arrowright'])mx=1; if(keys['/'])isHoldingMot=true; }
+                    const gp = navigator.getGamepads ? navigator.getGamepads()[pNum - 1] : null;
+                    if (gp) {
+                        if (Math.abs(gp.axes[0]) > 0.2) mx = gp.axes[0]; if (Math.abs(gp.axes[1]) > 0.2) my = gp.axes[1];
+                        if (gp.buttons[12]?.pressed) my = -1; if (gp.buttons[13]?.pressed) my = 1;
+                        if (gp.buttons[14]?.pressed) mx = -1; if (gp.buttons[15]?.pressed) mx = 1;
+                        if (gp.buttons[2]?.pressed || gp.buttons[7]?.pressed) isHoldingMot = true; 
+                    }
+                } else { updateAI(p, tName, dt); mx=p.dx||0; my=p.dy||0; if (p.aiMotivatorActive) isHoldingMot = true; } 
+            } else {
+                if (p.uid === userId) {
+                    let inps = getLocalInputMap();
+                    if(inps.up)my=-1; if(inps.down)my=1; if(inps.left)mx=-1; if(inps.right)mx=1; isHoldingMot = inps.abil;
+                } else if (p.uid) {
+                    let inps = remoteInputs[p.uid] || {};
+                    if(inps.up)my=-1; if(inps.down)my=1; if(inps.left)mx=-1; if(inps.right)mx=1; isHoldingMot = inps.abil;
+                } else {
+                    if (onlineMode === 'host') updateAI(p, tName, dt); 
+                    mx=p.dx||0; my=p.dy||0; if (p.aiMotivatorActive) isHoldingMot = true;
+                }
+            }
+
+            if (p.ability === 'Motivator+' && isHoldingMot && !p.isNull && game.freeze[tName] <= 0 && p.charge > 0) {
+                p.activeAbility = 'Motivator+';
+                p.charge = Math.max(0, p.charge - dt * 25); 
+
+                let range = p.radius + 100; let target = null, minDist = Infinity;
+                let candidates = p.team === 'blue' ? [...blueTeam, ...redTeam] : [...redTeam, ...blueTeam];
+                
+                candidates.forEach(e => {
+                    if (e === p || getDist(p, e) >= range) return;
+                    let isValid = false;
+                    if (e.team !== p.team && e.charge > 0 && !e.isNull) isValid = true;
+                    if (e.team === p.team && e.charge < 100 && e.ability !== 'None' && !e.isNull && p.storedEnergy > 0) isValid = true;
+                    if (isValid) { let d = getDist(p, e); if (d < minDist) { minDist = d; target = e; } }
+                });
+
+                if (target) {
+                    p.motTarget = target;
+                    if (target.team !== p.team) {
+                        p.motType = 'drain'; let actualDrain = Math.max(0, Math.min(dt * 60, target.charge));
+                        target.charge -= actualDrain; p.storedEnergy = Math.min(150, p.storedEnergy + actualDrain);
+                    } else { 
+                        p.motType = 'boost'; let actualBoost = Math.max(0, Math.min(dt * 60, p.storedEnergy, 100 - target.charge));
+                        p.storedEnergy -= actualBoost; target.charge += actualBoost;
+                    }
+                }
+            } else if (p.activeAbility === 'Motivator+') p.activeAbility = 'None';
+
+            let aSafe = p.activeAbility || '';
+            if(aSafe.includes('Tank') && p.timer>0) p.kp += aSafe.includes('+')?100:50;
+            if(aSafe==='Titan') { if(p.timer>0){p.radius*=1.5; p.spd*=2; p.kp*=2; p.stl*=2;} else if(p.dTimer>0){p.radius*=0.5; p.spd*=0.5; p.kp*=0.5; p.stl*=0.5;} }
+            if(aSafe==='Titan+' && p.timer>0) { p.radius*=2; p.spd*=3; p.kp*=3; p.stl*=3; }
+            if(aSafe.includes('Repel') && p.timer>0) {
+                let frc = aSafe.includes('+')?600:300; let rRad = aSafe.includes('+')?150:60;
+                (tName==='blue'?redTeam:blueTeam).forEach(e=>{
+                    if(getDist(p,e)<p.radius+e.radius+rRad){ 
+                        let vx=(e.x||0)-(p.x||0), vy=(e.y||0)-(p.y||0), l=Math.sqrt(vx*vx+vy*vy)||1; 
+                        e.x+=vx/l*dt*frc; e.y+=vy/l*dt*frc; e.x=Math.max(e.radius, Math.min(COURT_WIDTH-e.radius, e.x)); e.y=Math.max(e.radius, Math.min(COURT_HEIGHT-e.radius, e.y)); 
+                    }
+                });
+            }
+
+            if(game.freeze[tName]>0) return;
+
+            if(p.uid || (mx!==0 || my!==0)) {
+                if(mx!==0||my!==0){ p.dx=mx; p.dy=my; }
+                let b = p.uid ? (ball.heldBy?.team===tName&&ball.heldBy?.index===p.index?PLAYER_SPEED_BOOST:PLAYER_SPEED_NORMAL) : AI_SPEED;
+                if(onlineMode==='local' && isPlayerActive(p.team, p.index)===0) b = AI_SPEED;
+                let m = (aSafe==='Speedster'?1.2:(aSafe==='Speedster+'?1.6:1.0));
+                let spd = b * (0.5+(p.spd||50)/100) * m * (p.steal?0.7:1);
+                p.x += mx*spd; p.y += my*spd;
+                p.x = Math.max(p.radius||15, Math.min(COURT_WIDTH-(p.radius||15), p.x || COURT_WIDTH/2));
+                p.y = Math.max(p.radius||15, Math.min(COURT_HEIGHT-(p.radius||15), p.y || COURT_HEIGHT/2));
+            }
+        }
+
+        function updateAI(p, t, dt) {
+            let opp = t==='blue'?redTeam:blueTeam;
+            let ally = t==='blue'?blueTeam:redTeam;
+            
+            if(p.jTimer>0) p.jTimer-=dt;
+            if(p.cycleTimer>0) p.cycleTimer-=dt;
+            p.aiMotivatorActive = false;
+
+            if(p.abs.length>1 && !p.isNull && p.timer<=0 && p.dTimer<=0 && p.activeAbility==='None' && p.cycleTimer<=0) {
+                let wantsToSwitch = false; let weHaveBall = ball.heldBy?.team === t; let enemyHasBall = ball.heldBy && ball.heldBy.team !== t;
+                let isOffensive = ['Speedster', 'Speedster+', 'Sniper', 'Sniper+', 'Titan', 'Titan+', 'Blink', 'Blink+'].includes(p.ability);
+                let isDefensive = ['Magnet', 'Magnet+', 'Tank', 'Tank+', 'Repel', 'Repel+', 'Freeze+', 'Null'].includes(p.ability);
+                
+                if (Math.random() < p.iq * dt * 2) {
+                    if (weHaveBall && !isOffensive) wantsToSwitch = true;
+                    if (enemyHasBall && !isDefensive) wantsToSwitch = true;
+                    if (p.ability === 'Motivator+' && p.charge < 10 && p.storedEnergy < 10) wantsToSwitch = true;
+                }
+                if (wantsToSwitch || Math.random() < dt * 0.1) { cycleAbility(0, p); p.cycleTimer = 0.5; }
+            }
+
+            if(!p.isNull){
+                if(p.ability==='Null' && p.cd<=0 && opp.find(e=>getDist(p,e)<p.radius+15+p.nrng && !e.isNull && e.ability!=='None')) activateAbility(0, p);
+                else if(p.charge>=100 && ACTIVE_ABILITIES.includes(p.ability) && p.ability!=='Motivator+' && Math.random()<dt*0.3) activateAbility(0, p);
+                else if(p.ability==='Motivator+' && p.charge > 0) {
+                    let range = p.radius + 100;
+                    let nearEnemy = opp.find(e => getDist(p, e) < range && e.charge > 0 && !e.isNull);
+                    let nearAlly = ally.find(a => a !== p && getDist(p, a) < range && a.charge < 100 && a.ability !== 'None' && !a.isNull);
+                    if (p.storedEnergy < 150 && nearEnemy) p.aiMotivatorActive = true;
+                    else if (p.storedEnergy > 0 && nearAlly) p.aiMotivatorActive = true;
+                }
+            }
+
+            let tx=COURT_WIDTH/2, ty=COURT_HEIGHT/2; let oHole = t==='blue'?BLUE_HOLE:RED_HOLE, eHole = t==='blue'?RED_HOLE:BLUE_HOLE;
+            let hasBall = ball.heldBy?.team===t && ball.heldBy?.index===p.index;
+            if(hasBall){ tx=eHole.x; ty=eHole.y; if(getDist(p, eHole)<300 && Math.random()<p.iq*0.05) throwBall(p.team, p.index); }
+            else if(ball.heldBy?.team===t){ tx=eHole.x; ty=eHole.y; }
+            else if(ball.heldBy){ tx=ball.x||tx; ty=ball.y||ty; if(getDist(p,ball)<40 && Math.random()<p.iq*0.1 && p.sCd<=0 && game.freeze[t]<=0) {p.steal=true; p.sTimer=0.3; p.sCd=1.0;} }
+            else { tx=ball.x||tx; ty=ball.y||ty; }
+            
+            let vx=tx-(p.x||0), vy=ty-(p.y||0), l=Math.sqrt(vx*vx+vy*vy)||1; p.dx=vx/l; p.dy=vy/l;
+            if(p.jTimer>0){ p.dx+=(Math.random()-0.5)*2; p.dy+=(Math.random()-0.5)*2; }
+            let l2=Math.sqrt(p.dx*p.dx+p.dy*p.dy)||1; p.dx/=l2; p.dy/=l2;
+        }
+
+        function checkInteractions(stamp) {
+            if(!ball.heldBy && ball.cd<=0) {
+                [...blueTeam, ...redTeam].forEach(p => {
+                    let r = p.radius + (p.steal?15:0) + (p.activeAbility==='Magnet'?20:(p.activeAbility==='Magnet+'?50:0));
+                    if(getDist(p, ball) < r+ball.radius) {
+                        let isSelf = ball.lastHeldBy && ball.lastHeldBy.team === p.team && ball.lastHeldBy.index === p.index;
+                        if (ball.cd <= 0 || !isSelf) {
+                            ball.heldBy = { team: p.team, index: p.index };
+                            if (p.team==='blue') { if(game.pot.blue>0){game.pot.blue=0; displayMessage("Blue recovered! Pts lost.");} if(game.pot.red>0){game.scores.blue+=game.pot.red; displayMessage(`Blue recovered ${game.pot.red} Red pts!`); game.pot.red=0; game.potTimer.red=0;} }
+                            else { if(game.pot.red>0){game.pot.red=0; displayMessage("Red recovered! Pts lost.");} if(game.pot.blue>0){game.scores.red+=game.pot.blue; displayMessage(`Red recovered ${game.pot.blue} Blue pts!`); game.pot.blue=0; game.potTimer.blue=0;} }
+                        }
+                    }
+                });
+            }
+            if(ball.heldBy) {
+                let car = (ball.heldBy.team==='blue'?blueTeam:redTeam)[ball.heldBy.index];
+                if (!car) { ball.heldBy = null; return; } 
+                (ball.heldBy.team==='blue'?redTeam:blueTeam).forEach(e => {
+                    if(!e.steal) return;
+                    let r = car.radius + e.radius + 15 + (e.activeAbility==='Magnet'?20:(e.activeAbility==='Magnet+'?50:0));
+                    if(getDist(car, e) < r) {
+                        let ch = 50 + (e.stl - car.kp)*0.5; ch = Math.max(10, Math.min(90, ch));
+                        e.steal = false;
+                        if(Math.random()*100 < ch) {
+                            ball.heldBy = {team: e.team, index: e.index};
+                            if(UNTIL_STOLEN_ABILITIES.includes(car.activeAbility)){ car.timer=0; car.activeAbility='None'; }
+                            
+                            let vAb = car.isNull ? car.stAbil : car.ability; let txt = "Steal Success!";
+                            let attackerBase = e.isNull ? e.stAbil : e.baseAbility; let victimBase = car.isNull ? car.stAbil : car.baseAbility;
+                            
+                            if(attackerBase==='Copycat' && victimBase!=='Copycat' && victimBase!=='Adaptation' && vAb!=='None') {
+                                e.ability = vAb; e.charge = 100; e.activeAbility='None'; txt = "CC SUPPRESSION!";
+                                car.stAbil = vAb; car.ability = 'None'; car.isNull = true; car.nullTimer = 10; car.activeAbility='None'; car.timer=0; car.dTimer=0;
+                            }
+                            else if(attackerBase==='Adaptation' && e.spCd<=0 && vAb!=='None' && victimBase!=='Adaptation' && victimBase!=='Copycat') {
+                                if(!e.abs.includes(vAb)){ e.abs.push(vAb); e.spCd=5; txt = "ADAPTED!"; }
+                            }
+
+                            let pts = ball.heldBy.team==='blue'?game.pot.blue:game.pot.red;
+                            if(pts>0){ game.scores[e.team]+=pts; game.pot[ball.heldBy.team]=0; displayMessage(`${txt} + ${pts} pts!`); } else displayMessage(txt);
+                        }
+                    }
+                });
+            }
+            if(!ball.heldBy && ball.lastHeldBy && game.state === 'playing') {
+                if(ball.lastHeldBy.team==='blue' && getDist(ball,RED_HOLE)<ball.radius+RED_HOLE.radius){ let p=game.pot.blue+1; game.scores.blue+=p; game.pot.blue=0; displayMessage(`BLUE SCORES ${p} PTS!`); ball.x=COURT_WIDTH/2; ball.y=COURT_HEIGHT/2; ball.vx=0; ball.vy=0; ball.cd=0; ball.lastHeldBy=null; }
+                else if(ball.lastHeldBy.team==='red' && getDist(ball,BLUE_HOLE)<ball.radius+BLUE_HOLE.radius){ let p=game.pot.red+1; game.scores.red+=p; game.pot.red=0; displayMessage(`RED SCORES ${p} PTS!`); ball.x=COURT_WIDTH/2; ball.y=COURT_HEIGHT/2; ball.vx=0; ball.vy=0; ball.cd=0; ball.lastHeldBy=null; }
+            }
+            if(ball.heldBy) {
+                let t = ball.heldBy.team; let x = ball.x;
+                if(t==='blue' && x>RED_ZONE.x){ if(game.potTimer.blue===0)game.potTimer.blue=stamp; else if(stamp-game.potTimer.blue>1500){game.pot.blue++; game.potTimer.blue=stamp; displayMessage("Blue +1 Pot");} }
+                else if(t==='red' && x<BLUE_ZONE.x+BLUE_ZONE.w){ if(game.potTimer.red===0)game.potTimer.red=stamp; else if(stamp-game.potTimer.red>1500){game.pot.red++; game.potTimer.red=stamp; displayMessage("Red +1 Pot");} }
+                else { game.pot[t]=0; game.potTimer[t]=0; }
+            } else { game.potTimer={blue:0, red:0}; }
+        }
+        
+        function endGame(w) { game.state='gameOver'; cancelAnimationFrame(game.animId); UI.endUI.style.display='flex'; document.getElementById('end-winner-text').innerText=`${w} WINS!`; document.getElementById('final-blue-score').innerText=game.scores.blue; document.getElementById('final-red-score').innerText=game.scores.red; }
+
+        function draw() {
+            ctx.clearRect(0,0,COURT_WIDTH,COURT_HEIGHT);
+            ctx.fillStyle = 'rgba(59,130,246,0.1)'; ctx.fillRect(BLUE_ZONE.x, 0, BLUE_ZONE.w, COURT_HEIGHT);
+            ctx.fillStyle = 'rgba(107,114,128,0.1)'; ctx.fillRect(NEUTRAL_ZONE.x, 0, NEUTRAL_ZONE.w, COURT_HEIGHT);
+            ctx.fillStyle = 'rgba(239,68,68,0.1)'; ctx.fillRect(RED_ZONE.x, 0, RED_ZONE.w, COURT_HEIGHT);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(NEUTRAL_ZONE.x,0); ctx.lineTo(NEUTRAL_ZONE.x,COURT_HEIGHT); ctx.moveTo(RED_ZONE.x,0); ctx.lineTo(RED_ZONE.x,COURT_HEIGHT); ctx.stroke();
+            ctx.fillStyle='#111827'; ctx.strokeStyle='#fde047'; ctx.lineWidth=6;
+            ctx.beginPath(); ctx.arc(BLUE_HOLE.x, BLUE_HOLE.y, BLUE_HOLE.radius, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.arc(RED_HOLE.x, RED_HOLE.y, RED_HOLE.radius, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            
+            [...blueTeam, ...redTeam].forEach(p => {
+                if (p.activeAbility === 'Motivator+' && p.motTarget && p.motTarget.x) {
+                    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.motTarget.x, p.motTarget.y);
+                    ctx.lineWidth = 4; ctx.strokeStyle = p.motType === 'drain' ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)'; ctx.stroke();
+                }
+            });
+
+            [...blueTeam, ...redTeam].forEach(p => {
+                let a = p.activeAbility || '';
+                if(a.includes('Repel') && p.timer>0) { ctx.fillStyle = p.team==='blue'?'rgba(59,130,246,0.2)':'rgba(239,68,68,0.2)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+(a.includes('+')?150:60),0,Math.PI*2); ctx.fill(); }
+                if(a==='Null' && p.timer>0) { ctx.fillStyle='rgba(192,132,252,0.4)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+15+p.nrng,0,Math.PI*2); ctx.fill(); }
+                
+                if(game.freeze[p.team]>0) { ctx.fillStyle='rgba(165,243,252,0.5)'; ctx.fillRect(p.x-p.radius-5, p.y-p.radius-5, p.radius*2+10, p.radius*2+10); }
+                else if(p.isNull) { ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill(); }
+                if(p.steal && game.freeze[p.team]<=0){ ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+8,0,Math.PI*2); ctx.fill(); }
+                
+                ctx.fillStyle = p.team==='blue'?'#3b82f6':'#ef4444'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill();
+                
+                let cur = p.isNull ? p.stAbil : p.ability;
+                let c = p.isNull ? '#374151' : (['Copycat','Adaptation','Null'].includes(p.baseAbility)?'#fbbf24':(cur.includes('+')?'#c084fc':(cur!=='None'?'#3b82f6':'#9ca3af')));
+                
+                let isMe = p.uid === userId && onlineMode !== 'local';
+                if (isMe) { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+12,0,Math.PI*2); ctx.stroke(); } 
+                else if (onlineMode === 'local' && isPlayerActive(p.team, p.index) > 0 && !p.name) {
+                    ctx.strokeStyle = isPlayerActive(p.team, p.index)===1 ? '#3b82f6' : '#ef4444'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+10,0,Math.PI*2); ctx.stroke();
+                }
+
+                if (cur === 'Motivator+') {
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#10b981'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,Math.PI, 0); ctx.stroke(); 
+                    if(p.charge>0){ ctx.strokeStyle = '#059669'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,Math.PI, Math.PI+(Math.PI*(p.charge/100))); ctx.stroke(); }
+                    ctx.strokeStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,0, Math.PI); ctx.stroke(); 
+                    if(p.storedEnergy>0){ ctx.strokeStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,0, (Math.PI*(p.storedEnergy/150))); ctx.stroke(); }
+                } else {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,0,Math.PI*2); ctx.stroke();
+                    let pct=0, fc=c, show=false;
+                    if(p.isNull){ show=true; pct=p.nullTimer/10; fc='#4b5563'; }
+                    else if(p.dTimer>0){ show=true; pct=p.dTimer/4; fc='#ef4444'; }
+                    else if(p.timer>0){ 
+                        show=true; fc='#f59e0b';
+                        if (p.timer === Infinity) { pct=1; } 
+                        else {
+                            let maxTime = p.activeAbility.includes('+') ? 10 : 8;
+                            if (['Speedster', 'Speedster+', 'Magnet', 'Magnet+', 'Sniper', 'Sniper+', 'Tank', 'Tank+'].includes(p.activeAbility)) maxTime = p.activeAbility.includes('+') ? 7 : 5;
+                            if (p.activeAbility === 'Repel' || p.activeAbility === 'Repel+') maxTime = 5;
+                            if (p.activeAbility === 'Null') maxTime = 0.5;
+                            pct = p.timer / maxTime;
+                        }
+                    }
+                    else if(cur==='Null'&&p.cd>0){ show=true; pct=1-(p.cd/15); fc='rgba(251,191,36,0.4)'; }
+                    else if(cur==='Copycat'){ show=true; pct=p.charge/100; if(pct>=1)fc='#10b981'; }
+                    else if(cur!=='None' && !['Adaptation','Null'].includes(cur)){ show=true; pct=p.charge/100; if(pct>=1)fc='#10b981'; }
+
+                    pct = isNaN(pct) ? 0 : Math.max(0, Math.min(1, pct));
+                    if(show && pct>0){ ctx.strokeStyle=fc; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius+3,-Math.PI/2, -Math.PI/2+(Math.PI*2*pct)); ctx.stroke(); }
+                }
+                
+                ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.role.substr(0,2).toUpperCase(), p.x, p.y+4);
+                
+                if(p.name) { 
+                    ctx.fillStyle = isMe ? '#fbbf24' : 'rgba(255,255,255,0.9)'; 
+                    ctx.font = (isMe?'bold ':'')+'10px sans-serif'; ctx.fillText(p.name, p.x, p.y+p.radius+16); 
+                }
+                
+                let displayAbil = p.isNull ? 'NULLIFIED' : p.ability;
+                ctx.fillStyle = p.isNull ? '#ef4444' : c; ctx.font='bold 10px sans-serif'; ctx.fillText(displayAbil.toUpperCase(), p.x, p.y-p.radius-8); 
+            });
+
+            ctx.fillStyle=ball.color; ctx.beginPath(); ctx.arc(ball.x||COURT_WIDTH/2,ball.y||COURT_HEIGHT/2,ball.radius,0,Math.PI*2); ctx.fill();
+        }
+    </script>
+</body>
+</html>
